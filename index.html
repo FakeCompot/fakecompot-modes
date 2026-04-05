@@ -8,7 +8,7 @@
 <style>
 @font-face {
     font-family: 'Minecraft';
-    src: url('https://cdn.jsdelivr.net/npm/minecraft-font@1.0.0/minecraft_font.otf') format('opentype');
+    src: url('https://cdn.jsdelivr.net/npm/minecraft-font@1.0.0/minecraft_font.otf');
 }
 
 * { box-sizing:border-box; margin:0; padding:0; font-family:'Minecraft', monospace!important; }
@@ -44,7 +44,7 @@ button {
     cursor:pointer;
 }
 
-input, textarea {
+input {
     background:#05222e;
     border:2px solid #4aa5d0;
     padding:10px;
@@ -53,14 +53,14 @@ input, textarea {
     margin:10px 0;
 }
 
-.auth-screen,.files-panel,.file-page,.comments-panel,.admin-panel {
+.auth-screen,.files-panel,.file-page,.admin-panel {
     background:#0e384bb3;
     border:3px solid #61b0d6;
     margin-top:20px;
     padding:20px;
 }
 
-.file-card,.comment-card {
+.file-card {
     background:#083544;
     border-left:14px solid #3699cc;
     margin:10px 0;
@@ -89,16 +89,14 @@ a.button-link {
 <script>
 // --- ДАННЫЕ ---
 let files = JSON.parse(localStorage.getItem("files")||"[]");
-let comments = JSON.parse(localStorage.getItem("comments")||"[]");
 
-// 🔥 ВОССТАНОВЛЕНИЕ ВХОДА
-let role = localStorage.getItem("role");
-let nick = localStorage.getItem("nick");
+// ✅ СОХРАНЕНИЕ АККАУНТА (главное исправление)
+let role = localStorage.getItem("role") || null;
+let nick = localStorage.getItem("nick") || null;
 
 // --- СОХРАНЕНИЕ ---
 function saveAll(){
     localStorage.setItem("files", JSON.stringify(files));
-    localStorage.setItem("comments", JSON.stringify(comments));
     localStorage.setItem("role", role);
     localStorage.setItem("nick", nick);
 }
@@ -122,50 +120,24 @@ function render(){
             return;
         }
 
-        let html = `
+        app.innerHTML = `
         <div class="file-page">
             <h2>${f.title}</h2>
             <button onclick="downloadFile('${f.name}')">СКАЧАТЬ</button>
             <br><br>
             <a class="button-link" href="${window.location.pathname}">← НАЗАД</a>
         </div>`;
-
-        html += `<div class="comments-panel"><h3>Комментарии</h3>`;
-
-        const list = comments.filter(c=>c.mod===title);
-
-        if(list.length===0) html += "НЕТ КОММЕНТАРИЕВ";
-
-        list.forEach(c=>{
-            html += `<div class="comment-card"><b>${c.nick}</b>: ${c.text}</div>`;
-        });
-
-        // 🔥 ВАЖНО: теперь работает
-        if(role){
-            html += `
-            <textarea id="commentText" placeholder="Комментарий"></textarea>
-            <button onclick="addComment('${title}')">ОТПРАВИТЬ</button>
-            `;
-        } else {
-            html += `
-            <div>Войди чтобы писать комментарии</div>
-            <button onclick="showLogin()">ВОЙТИ</button>
-            `;
-        }
-
-        html += `</div>`;
-        app.innerHTML = html;
         return;
     }
 
-    // --- ВХОД ---
+    // --- ЕСЛИ НЕ ВОШЕЛ ---
     if(!role){
         showLogin();
         return;
     }
 
     // --- ГЛАВНАЯ ---
-    let html = `<button onclick="logout()">ВЫЙТИ</button>`;
+    let html = `<button onclick="logout()">ВЫЙТИ (${nick})</button>`;
 
     if(role==="admin"){
         html += `
@@ -177,6 +149,8 @@ function render(){
     }
 
     html += `<div class="files-panel">`;
+
+    if(files.length===0) html += "НЕТ ФАЙЛОВ";
 
     files.forEach(f=>{
         html += `
@@ -191,41 +165,49 @@ function render(){
     app.innerHTML = html;
 }
 
-// --- ВХОД ---
+// --- ВХОД (ПОЛНОСТЬЮ ИСПРАВЛЕН) ---
 function showLogin(){
     document.getElementById("app").innerHTML = `
     <div class="auth-screen">
         <input id="nickInput" placeholder="Ник">
         <div id="pass"></div>
-        <button onclick="login()">ВОЙТИ</button>
+        <button onclick="handleLogin()">ВОЙТИ</button>
     </div>`;
 }
 
-function login(){
+function handleLogin(){
     const n = document.getElementById("nickInput").value.trim();
     if(!n) return;
 
+    // админ
     if(n==="rtQu27"){
         document.getElementById("pass").innerHTML = `
-        <input id="p" placeholder="Пароль">
-        <button onclick="checkAdmin('${n}')">OK</button>`;
-    } else {
-        role="user";
-        nick=n;
-        saveAll();
-        render();
+            <input id="p" type="password" placeholder="Пароль">
+            <button onclick="confirmAdmin('${n}')">OK</button>
+        `;
+        return;
     }
-}
 
-function checkAdmin(n){
-    const p = document.getElementById("p").value;
-    if(p==="13") role="admin";
-    else role="user";
+    // обычный пользователь
+    role="user";
     nick=n;
     saveAll();
     render();
 }
 
+function confirmAdmin(n){
+    const p = document.getElementById("p").value;
+    if(p==="13"){
+        role="admin";
+    } else {
+        role="user";
+    }
+    nick=n;
+    saveAll();
+    render();
+}
+
+// --- ВЫХОД ---
 function logout(){
     role=null;
     nick=null;
@@ -269,25 +251,8 @@ function downloadFile(name){
     a.click();
 }
 
-// --- КОММЕНТЫ ---
-function addComment(mod){
-    if(!role) return;
-
-    const text=document.getElementById("commentText").value.trim();
-    if(!text) return;
-
-    comments.push({
-        mod:mod,
-        nick:nick,
-        text:text
-    });
-
-    saveAll();
-    render();
-}
-
 // --- СТАРТ ---
 render();
 </script>
 </body>
-    </html>
+</html>
