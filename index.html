@@ -4,18 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ФАЙЛЫ ОТ ФЕЙКОВОГО КОМПОТА</title>
-
 <style>
-@font-face { font-family:'Minecraft'; src:url('https://cdn.jsdelivr.net/npm/minecraft-font@1.0.0/minecraft_font.otf') format('opentype'); }
+@font-face {
+    font-family: 'Minecraft';
+    src: url('https://cdn.jsdelivr.net/npm/minecraft-font@1.0.0/minecraft_font.otf') format('opentype');
+}
 * { box-sizing:border-box; margin:0; padding:0; font-family:'Minecraft', monospace!important; }
-body { background: linear-gradient(145deg,#0b2b3b,#06314a); color:#b3e4ff; padding:24px; min-height:100vh; }
-.site-wrapper { max-width:1300px; margin:auto; background:#0a2e3fd9; border:6px solid #3b8fbd; padding:20px; }
-.main-header { text-align:center; font-size:2rem; background:#0a3f55; border:3px solid #6ec8ff; padding:16px; margin-bottom:20px; }
-button { background:#1e6f8f; border:3px solid #9ad7ff; color:#fff; padding:8px 20px; cursor:pointer; margin:5px 0; }
-input { background:#05222e; border:2px solid #4aa5d0; padding:10px; color:#c2ecff; width:90%; margin:10px 0; }
-.auth-screen, .files-panel, .file-page, .admin-panel { background:#0e384bb3; border:3px solid #61b0d6; margin-top:20px; padding:20px; }
-.file-card { background:#083544; border-left:14px solid #3699cc; margin:10px 0; padding:10px; }
-a.button-link { display:inline-block; background:#1e6f8f; border:3px solid #9ad7ff; color:#fff; padding:6px 15px; text-decoration:none; }
+body { background: linear-gradient(145deg,#0b2b3b,#06314a); color:#b3e4ff; padding:24px; min-height:100vh;}
+.site-wrapper { max-width:1300px; margin:auto; background:#0a2e3fd9; border:6px solid #3b8fbd; padding:20px;}
+.main-header { text-align:center; font-size:2rem; background:#0a3f55; border:3px solid #6ec8ff; padding:16px; margin-bottom:20px;}
+button { background:#1e6f8f; border:3px solid #9ad7ff; color:#fff; padding:8px 20px; cursor:pointer; margin:5px 0;}
+input { background:#05222e; border:2px solid #4aa5d0; padding:10px; color:#c2ecff; width:90%; margin:10px 0;}
+.files-panel, .admin-panel, .file-card { background:#0e384bb3; border:3px solid #61b0d6; margin-top:20px; padding:20px;}
+.file-card { background:#083544; border-left:14px solid #3699cc; margin:10px 0; padding:10px;}
+a.button-link { display:inline-block; background:#1e6f8f; border:3px solid #9ad7ff; color:#fff; padding:6px 15px; text-decoration:none; margin-top:5px;}
 </style>
 </head>
 <body>
@@ -25,53 +27,66 @@ a.button-link { display:inline-block; background:#1e6f8f; border:3px solid #9ad7
 </div>
 
 <script>
-let files = JSON.parse(localStorage.getItem("files")||"[]");
 let role = localStorage.getItem("role");
 let nick = localStorage.getItem("nick");
 
-function saveAll() {
-    localStorage.setItem("files", JSON.stringify(files));
+function saveAccount() {
     localStorage.setItem("role", role);
     localStorage.setItem("nick", nick);
 }
 
-function getParam(name){ return new URLSearchParams(window.location.search).get(name); }
+async function fetchMods() {
+    const res = await fetch('/api/mods');
+    if (!res.ok) return [];
+    return await res.json();
+}
 
-function render(){
+function showLogin() {
+    document.getElementById("app").innerHTML = `
+    <div class="files-panel">
+        <input id="nickInput" placeholder="Ник">
+        <div id="pass"></div>
+        <button onclick="login()">ВОЙТИ</button>
+    </div>`;
+}
+
+function login() {
+    const n = document.getElementById("nickInput").value.trim();
+    if (!n) return;
+
+    if (n === "rtQu27") {
+        document.getElementById("pass").innerHTML = `
+        <input id="p" type="password" placeholder="Пароль">
+        <button onclick="checkAdmin()">OK</button>`;
+    } else {
+        role = "user"; nick = n;
+        saveAccount();
+        render();
+    }
+}
+
+function checkAdmin() {
+    const p = document.getElementById("p").value;
+    if (p === "13") role = "admin";
+    else role = "user";
+    nick = "rtQu27";
+    saveAccount();
+    render();
+}
+
+function logout() {
+    role = null; nick = null;
+    saveAccount();
+    render();
+}
+
+async function render() {
     const app = document.getElementById("app");
-    const modParam = getParam("mod");
+    if (!role) { showLogin(); return; }
 
-    // --- Страница мода всегда открывается ---
-    if(modParam){
-        const title = decodeURIComponent(modParam);
-        const f = files.find(x=>x.title===title);
-        if(!f){ app.innerHTML="<div class='files-panel'>МОД НЕ НАЙДЕН</div>"; return; }
-
-        app.innerHTML = `
-            <div class="file-page">
-                <h2>${f.title}</h2>
-                <button onclick="downloadFile('${f.name}')">СКАЧАТЬ</button><br><br>
-                <a class="button-link" href="${window.location.pathname}">← НАЗАД</a>
-            </div>
-        `;
-        return;
-    }
-
-    // --- Вход если нет аккаунта ---
-    if(!role){
-        app.innerHTML = `
-        <div class="auth-screen">
-            <input id="nickInput" placeholder="Ник">
-            <div id="pass"></div>
-            <button onclick="login()">ВОЙТИ</button>
-        </div>`;
-        return;
-    }
-
-    // --- Главная панель ---
     let html = `<button onclick="logout()">ВЫЙТИ</button>`;
 
-    if(role==="admin"){
+    if (role === "admin") {
         html += `
         <div class="admin-panel">
             <input id="title" placeholder="Название мода">
@@ -80,75 +95,37 @@ function render(){
         </div>`;
     }
 
+    const mods = await fetchMods();
     html += `<div class="files-panel">`;
-    files.forEach(f=>{
+    if (mods.length === 0) html += "НЕТ МОДОВ";
+    mods.forEach(mod => {
         html += `
         <div class="file-card">
-            ${f.title}<br>
-            <a class="button-link" href="?mod=${encodeURIComponent(f.title)}">ОТКРЫТЬ</a>
+            <b>${mod.title}</b><br>
+            <a class="button-link" href="/api/mods/${encodeURIComponent(mod.name)}" target="_blank">СКАЧАТЬ</a>
         </div>`;
     });
     html += `</div>`;
     app.innerHTML = html;
 }
 
-// --- Логин ---
-function login(){
-    const n = document.getElementById("nickInput").value.trim();
-    if(!n) return;
+function upload() {
+    const fileInput = document.getElementById("file");
+    const titleInput = document.getElementById("title");
+    if (!fileInput.files[0] || !titleInput.value.trim()) return;
 
-    if(n==="rtQu27"){
-        document.getElementById("pass").innerHTML = `
-        <input id="p" type="password" placeholder="Пароль">
-        <button onclick="checkAdmin('${n}')">OK</button>`;
-    } else {
-        role="user"; nick=n; saveAll(); render();
-    }
+    const formData = new FormData();
+    formData.append("mod", fileInput.files[0]);
+
+    fetch('/api/upload', {
+        method: "POST",
+        body: formData
+    }).then(res => res.text())
+      .then(alert)
+      .then(render);
 }
 
-function checkAdmin(n){
-    const p = document.getElementById("p").value;
-    if(p==="13") role="admin"; else role="user";
-    nick=n;
-    saveAll();
-    render();
-}
-
-function logout(){
-    role=null; nick=null; saveAll(); render();
-}
-
-// --- Загрузка ---
-function upload(){
-    const t=document.getElementById("title").value;
-    const f=document.getElementById("file").files[0];
-    if(!t||!f) return;
-
-    const r=new FileReader();
-    r.onload=e=>{
-        files.push({ title:t, data:e.target.result.split(',')[1], name:f.name, type:f.type });
-        saveAll(); render();
-    };
-    r.readAsDataURL(f);
-}
-
-// --- Скачка ---
-function downloadFile(name){
-    const f=files.find(x=>x.name===name);
-    if(!f) return;
-
-    const b=atob(f.data);
-    const arr=new Uint8Array(b.length);
-    for(let i=0;i<b.length;i++) arr[i]=b.charCodeAt(i);
-
-    const blob=new Blob([arr], {type:f.type});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=f.name;
-    a.click();
-}
-
-// --- Старт ---
+// Старт
 render();
 </script>
 </body>
