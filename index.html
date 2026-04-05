@@ -87,20 +87,27 @@ a.button-link {
 </div>
 
 <script>
+// --- ДАННЫЕ ---
 let files = JSON.parse(localStorage.getItem("files")||"[]");
 let comments = JSON.parse(localStorage.getItem("comments")||"[]");
-let role = null;
-let nick = "";
 
-function save(){
+// 🔥 ВОССТАНОВЛЕНИЕ ВХОДА
+let role = localStorage.getItem("role");
+let nick = localStorage.getItem("nick");
+
+// --- СОХРАНЕНИЕ ---
+function saveAll(){
     localStorage.setItem("files", JSON.stringify(files));
     localStorage.setItem("comments", JSON.stringify(comments));
+    localStorage.setItem("role", role);
+    localStorage.setItem("nick", nick);
 }
 
 function getParam(name){
     return new URLSearchParams(window.location.search).get(name);
 }
 
+// --- РЕНДЕР ---
 function render(){
     const app = document.getElementById("app");
     const modParam = getParam("mod");
@@ -123,7 +130,6 @@ function render(){
             <a class="button-link" href="${window.location.pathname}">← НАЗАД</a>
         </div>`;
 
-        // --- КОММЕНТЫ ---
         html += `<div class="comments-panel"><h3>Комментарии</h3>`;
 
         const list = comments.filter(c=>c.mod===title);
@@ -134,15 +140,17 @@ function render(){
             html += `<div class="comment-card"><b>${c.nick}</b>: ${c.text}</div>`;
         });
 
-        // --- ФОРМА ---
+        // 🔥 ВАЖНО: теперь работает
         if(role){
             html += `
             <textarea id="commentText" placeholder="Комментарий"></textarea>
             <button onclick="addComment('${title}')">ОТПРАВИТЬ</button>
             `;
         } else {
-            html += `<div>Войди чтобы писать комментарии</div>
-            <button onclick="showLogin()">ВОЙТИ</button>`;
+            html += `
+            <div>Войди чтобы писать комментарии</div>
+            <button onclick="showLogin()">ВОЙТИ</button>
+            `;
         }
 
         html += `</div>`;
@@ -183,41 +191,45 @@ function render(){
     app.innerHTML = html;
 }
 
-// --- ВХОД ФОРМА ---
+// --- ВХОД ---
 function showLogin(){
     document.getElementById("app").innerHTML = `
     <div class="auth-screen">
-        <input id="nick" placeholder="Ник">
+        <input id="nickInput" placeholder="Ник">
         <div id="pass"></div>
         <button onclick="login()">ВОЙТИ</button>
     </div>`;
 }
 
 function login(){
-    const n = document.getElementById("nick").value.trim();
+    const n = document.getElementById("nickInput").value.trim();
     if(!n) return;
 
     if(n==="rtQu27"){
         document.getElementById("pass").innerHTML = `
         <input id="p" placeholder="Пароль">
-        <button onclick="checkAdmin()">OK</button>`;
-        nick = n;
+        <button onclick="checkAdmin('${n}')">OK</button>`;
     } else {
         role="user";
         nick=n;
+        saveAll();
         render();
     }
 }
 
-function checkAdmin(){
+function checkAdmin(n){
     const p = document.getElementById("p").value;
     if(p==="13") role="admin";
     else role="user";
+    nick=n;
+    saveAll();
     render();
 }
 
 function logout(){
     role=null;
+    nick=null;
+    saveAll();
     render();
 }
 
@@ -235,7 +247,7 @@ function upload(){
             name:f.name,
             type:f.type
         });
-        save();
+        saveAll();
         render();
     };
     r.readAsDataURL(f);
@@ -257,7 +269,7 @@ function downloadFile(name){
     a.click();
 }
 
-// --- КОММЕНТ ---
+// --- КОММЕНТЫ ---
 function addComment(mod){
     if(!role) return;
 
@@ -270,11 +282,12 @@ function addComment(mod){
         text:text
     });
 
-    save();
+    saveAll();
     render();
 }
 
+// --- СТАРТ ---
 render();
 </script>
 </body>
-</html>
+    </html>
