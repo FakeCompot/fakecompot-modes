@@ -1,3 +1,4 @@
+// server.js
 // Запуск: npm init -y, npm install express multer cors, node server.js
 const express = require("express");
 const multer = require("multer");
