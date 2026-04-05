@@ -26,7 +26,7 @@ button {
 }
 button:active { background: #0a4f6b; transform: translateY(2px); }
 
-input {
+input, textarea {
     background: #05222e;
     border: 2px solid #4aa5d0;
     padding: 10px;
@@ -37,10 +37,13 @@ input {
 
 .auth-screen { background: #0f4057; border: 4px solid #6bc3f0; padding: 32px 24px; max-width: 550px; margin: 20px auto; text-align: center; }
 .error-message { background: #1e4a5e; color: #ffcd94; padding: 8px; margin-top: 12px; border-left: 8px solid #ffaa55; font-size: 0.8rem; }
-.admin-panel, .files-panel, .file-page { background:#0e384bb3; border:3px solid #61b0d6; margin-top:28px; padding:20px; }
-.file-card { background:#083544; border-left:14px solid #3699cc; margin:18px 0; padding:14px; display:flex; justify-content:space-between; align-items:center; }
+.admin-panel, .files-panel, .file-page, .comments-panel { background:#0e384bb3; border:3px solid #61b0d6; margin-top:28px; padding:20px; }
+.file-card, .comment-card { background:#083544; border-left:14px solid #3699cc; margin:18px 0; padding:14px; display:flex; flex-direction:column; }
 a.button-link { text-decoration:none; color:#eef9ff; background:#1e6f8f; border:3px solid #9ad7ff; padding:8px 20px; text-align:center; display:inline-block; text-shadow:1px 1px 0 #004466; }
 a.button-link:hover { background:#0a4f6b; }
+.reply-button { background:#1e3f5f; margin-top:5px; font-size:0.8rem; }
+.reply-button:hover { background:#0a2b40; }
+.reply-card { background:#0a3f55; border-left:10px solid #2288cc; margin:8px 0 8px 20px; padding:10px; }
 </style>
 </head>
 <body>
@@ -53,42 +56,79 @@ a.button-link:hover { background:#0a4f6b; }
 </div>
 
 <script>
-let files = JSON.parse(localStorage.getItem("files")||"[]");
+// --- ДАННЫЕ ---
+let files = JSON.parse(localStorage.getItem("files") || "[]");
+let comments = JSON.parse(localStorage.getItem("comments") || "[]");
 let role = null;
 let nick = "";
 
-function save(){ localStorage.setItem("files", JSON.stringify(files)); }
-function getParam(name){ const params = new URLSearchParams(window.location.search); return params.get(name); }
+// --- СОХРАНЕНИЕ ---
+function saveFiles() { localStorage.setItem("files", JSON.stringify(files)); }
+function saveComments() { localStorage.setItem("comments", JSON.stringify(comments)); }
+function getParam(name) { const params = new URLSearchParams(window.location.search); return params.get(name); }
 
-function render(){
+// --- РЕНДЕР ---
+function render() {
     const app = document.getElementById("app");
     const modParam = getParam("mod");
 
-    // --- Если открыта страница мода напрямую ---
-    if(modParam){
-        const f = files.find(x=>x.title===modParam);
+    // --- Страница мода по ссылке ---
+    if(modParam) {
+        const f = files.find(x => x.title === decodeURIComponent(modParam));
         if(!f){ app.innerHTML="<div class='files-panel'>МОД НЕ НАЙДЕН</div>"; return; }
-        app.innerHTML = `
-            <div class="file-page">
-                <h2>${f.title}</h2>
-                <button onclick="downloadFile('${f.name}')">СКАЧАТЬ</button><br><br>
-                <a class="button-link" href="${window.location.pathname}">← НАЗАД</a>
+
+        let modHtml = `
+        <div class="file-page">
+            <h2>${f.title}</h2>
+            <button onclick="downloadFile('${f.name}')">СКАЧАТЬ</button>
+            <a class="button-link" href="${window.location.pathname}">← НАЗАД</a>
+        </div>`;
+
+        // --- Комментарии ---
+        modHtml += `<div class="comments-panel"><h3>Комментарии</h3>`;
+        const modComments = comments.filter(c => c.mod === f.title);
+        if(modComments.length === 0) modHtml += "<div>НЕТ КОММЕНТАРИЕВ</div>";
+
+        modComments.forEach(c => {
+            modHtml += `<div class="comment-card">
+                <strong>${c.nick}</strong>: ${c.text}
+                <button class="reply-button" onclick="showReplyForm('${c.id}')">Ответить</button>
+                <div id="replies-${c.id}"></div>
             </div>`;
+            const replies = c.replies || [];
+            replies.forEach(r => {
+                modHtml += `<div class="reply-card"><strong>${r.nick}</strong>: ${r.text}</div>`;
+            });
+        });
+
+        // --- Форма добавления комментария ---
+        if(role){
+            modHtml += `
+            <div style="margin-top:20px;">
+                <textarea id="new-comment" placeholder="Написать комментарий"></textarea><br>
+                <button onclick="addComment('${f.title}')">Отправить</button>
+            </div>`;
+        } else {
+            modHtml += `<div>Чтобы оставить комментарий, нужно войти.</div>`;
+        }
+
+        modHtml += `</div>`;
+        app.innerHTML = modHtml;
         return;
     }
 
     // --- Вход на сайт ---
-    if(!role){
+    if(!role) {
         app.innerHTML = `
-            <div class="auth-screen">
-                <div style="font-size:1.3rem;">ВХОД НА САЙТ</div>
-                <input id="nick" placeholder="Никнейм">
-                <div id="err" class="error-message" style="display:none;"></div>
-                <button id="go">ПРОДОЛЖИТЬ</button>
-                <div id="pass"></div>
-            </div>`;
-        
-        document.getElementById("go").onclick = ()=>{
+        <div class="auth-screen">
+            <div style="font-size:1.3rem;">ВХОД НА САЙТ</div>
+            <input id="nick" placeholder="Никнейм">
+            <div id="err" class="error-message" style="display:none;"></div>
+            <div id="pass"></div>
+            <button id="go">ПРОДОЛЖИТЬ</button>
+        </div>`;
+
+        document.getElementById("go").onclick = () => {
             const n = document.getElementById("nick").value.trim();
             if(!n){ document.getElementById("err").style.display="block"; document.getElementById("err").innerText="ВВЕДИ НИК"; return; }
 
@@ -97,15 +137,13 @@ function render(){
                     <input id="p" type="password" placeholder="Пароль">
                     <button id="ok">OK</button>
                 `;
-                document.getElementById("ok").onclick = ()=>{
+                document.getElementById("ok").onclick = () => {
                     const pass = document.getElementById("p").value;
-                    if(pass==="13"){ role="admin"; }
-                    else { role="user"; document.getElementById("err").style.display="block"; document.getElementById("err").innerText="НЕВЕРНЫЙ ПАРОЛЬ — ВЫ ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ"; }
-                    nick = n;
-                    render();
+                    if(pass==="13"){ role="admin"; nick=n; render(); }
+                    else { role="user"; nick=n; document.getElementById("err").style.display="block"; document.getElementById("err").innerText="НЕВЕРНЫЙ ПАРОЛЬ — ВЫ ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ"; render(); }
                 };
             } else {
-                role = "user"; nick = n; render();
+                role="user"; nick=n; render();
             }
         };
         return;
@@ -124,7 +162,7 @@ function render(){
 
     html += `<div class="files-panel">`;
     if(files.length===0){ html += "<div>НЕТ ФАЙЛОВ</div>"; }
-    files.forEach(f=>{
+    files.forEach(f => {
         html += `
         <div class="file-card">
             <div>${f.title}</div>
@@ -135,21 +173,23 @@ function render(){
     app.innerHTML = html;
 }
 
+// --- ВЫХОД ---
 function logout(){ role=null; render(); }
 
-function upload(){
+// --- ЗАГРУЗКА ФАЙЛОВ ---
+function upload() {
     const t = document.getElementById("title").value;
     const f = document.getElementById("file").files[0];
     if(!t||!f) return;
     const r = new FileReader();
-    r.onload = e=>{
+    r.onload = e => {
         files.push({ title:t, data:e.target.result.split(',')[1], name:f.name, type:f.type });
-        save();
-        render();
+        saveFiles(); render();
     };
     r.readAsDataURL(f);
 }
 
+// --- СКАЧАТЬ ---
 function downloadFile(name){
     const f = files.find(x=>x.name===name);
     if(!f||!f.data) return;
@@ -163,7 +203,37 @@ function downloadFile(name){
     a.click();
 }
 
+// --- КОММЕНТАРИИ ---
+function addComment(modTitle){
+    const text = document.getElementById("new-comment").value.trim();
+    if(!text) return;
+    const id = 'c'+Date.now();
+    comments.push({ id, mod:modTitle, nick:nick, text, replies:[] });
+    saveComments(); render();
+}
+
+// --- ОТВЕТЫ ---
+function showReplyForm(commentId){
+    const c = comments.find(c => c.id === commentId);
+    if(!c) return;
+    const div = document.getElementById('replies-'+commentId);
+    if(div.innerHTML) return; 
+    div.innerHTML = `
+        <textarea id="reply-${commentId}" placeholder="Ответить"></textarea>
+        <button onclick="addReply('${commentId}')">Отправить</button>
+    `;
+}
+
+function addReply(commentId){
+    const c = comments.find(c => c.id === commentId);
+    if(!c) return;
+    const text = document.getElementById(`reply-${commentId}`).value.trim();
+    if(!text) return;
+    c.replies.push({ nick:nick, text });
+    saveComments(); render();
+}
+
 render();
 </script>
 </body>
-</html>
+    </html>
