@@ -34,7 +34,6 @@ input, textarea {
     width: 90%;
     margin: 12px 0;
 }
-
 textarea { resize: vertical; min-height:60px; }
 
 .auth-screen { background: #0f4057; border: 4px solid #6bc3f0; padding: 32px 24px; max-width: 550px; margin: 20px auto; text-align: center; }
@@ -62,8 +61,11 @@ let comments = JSON.parse(localStorage.getItem("comments")||"[]");
 let role = null;
 let nick = "";
 
-// --- Функции сохранения ---
-function save(){ localStorage.setItem("files", JSON.stringify(files)); localStorage.setItem("comments", JSON.stringify(comments)); }
+// --- Функции ---
+function save(){ 
+    localStorage.setItem("files", JSON.stringify(files)); 
+    localStorage.setItem("comments", JSON.stringify(comments)); 
+}
 function getParam(name){ return new URLSearchParams(window.location.search).get(name); }
 
 // --- Рендер ---
@@ -71,7 +73,7 @@ function render(){
     const app = document.getElementById("app");
     const modParam = getParam("mod");
 
-    // --- Открыта страница мода напрямую ---
+    // --- Страница мода ---
     if(modParam){
         const f = files.find(x => x.title === decodeURIComponent(modParam));
         if(!f){ app.innerHTML="<div class='files-panel'>МОД НЕ НАЙДЕН</div>"; return; }
@@ -98,23 +100,28 @@ function render(){
             });
         });
 
-        // --- Форма добавления комментария ---
+        // --- Форма комментария ---
         if(role){
             html += `
             <div style="margin-top:20px;">
                 <textarea id="new-comment" placeholder="Написать комментарий"></textarea><br>
-                <button onclick="addComment('${f.title}')">Отправить</button>
+                <button id="send-comment">Отправить</button>
             </div>`;
         } else {
             html += `<div>Чтобы оставить комментарий, нужно войти.</div>`;
         }
 
-        html += `</div>`;
         app.innerHTML = html;
+
+        // --- Привязка кнопки ---
+        if(role){
+            document.getElementById("send-comment").onclick = ()=>addComment(f.title);
+        }
+
         return;
     }
 
-    // --- Вход на сайт ---
+    // --- Вход ---
     if(!role){
         app.innerHTML = `
             <div class="auth-screen">
@@ -129,6 +136,8 @@ function render(){
             const n = document.getElementById("nick").value.trim();
             if(!n){ document.getElementById("err").style.display="block"; document.getElementById("err").innerText="ВВЕДИ НИК"; return; }
 
+            nick = n; // важно присвоить перед render
+
             if(n==="rtQu27"){
                 document.getElementById("pass").innerHTML = `
                     <input id="p" type="password" placeholder="Пароль">
@@ -137,12 +146,11 @@ function render(){
                 document.getElementById("ok").onclick = ()=>{
                     const pass = document.getElementById("p").value;
                     if(pass==="13"){ role="admin"; }
-                    else { role="user"; document.getElementById("err").style.display="block"; document.getElementById("err").innerText="НЕВЕРНЫЙ ПАРОЛЬ — ВЫ ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ"; }
-                    nick = n;
+                    else { role="user"; document.getElementById("err").style.display="block"; document.getElementById("err").innerText="НЕВЕРНЫЙ ПАРОЛЬ — ВЫ ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ"; role="user"; }
                     render();
                 };
             } else {
-                role = "user"; nick = n; render();
+                role = "user"; render();
             }
         };
         return;
@@ -173,7 +181,7 @@ function render(){
 }
 
 // --- Логика ---
-function logout(){ role=null; render(); }
+function logout(){ role=null; nick=""; render(); }
 
 function upload(){
     const t = document.getElementById("title").value;
@@ -204,7 +212,7 @@ function downloadFile(name){
 // --- Комментарии ---
 function addComment(mod){
     const text = document.getElementById("new-comment").value.trim();
-    if(!text) return;
+    if(!text || !nick) return;
     const id = Date.now().toString();
     comments.push({ id, mod, nick, text, replies: [] });
     save();
